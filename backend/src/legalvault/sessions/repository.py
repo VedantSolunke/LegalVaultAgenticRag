@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Json
 
 from legalvault.models.research import ResearchResponse
 from legalvault.models.sessions import ChatSession, SessionMessage
@@ -101,9 +101,9 @@ class SessionStore:
         research: ResearchResponse | None = None,
     ) -> SessionMessage:
         stored_body = redact_message(live_body)
-        research_json: dict[str, Any] | None = (
-            research.model_dump() if research is not None else None
-        )
+        research_param: Json | None = None
+        if research is not None:
+            research_param = Json(research.model_dump(mode="json"))
 
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -113,7 +113,7 @@ class SessionStore:
                     VALUES (%s, %s, %s, %s)
                     RETURNING id, session_id, role, body, created_at
                     """,
-                    (session_id, role, stored_body, research_json),
+                    (session_id, role, stored_body, research_param),
                 )
                 row = cur.fetchone()
                 cur.execute(
