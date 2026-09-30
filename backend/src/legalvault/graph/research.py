@@ -9,6 +9,7 @@ from legalvault.providers.stubs import StubLLMProvider
 from legalvault.retrieval.ipc_lookup import extract_ipc_section_numbers
 from legalvault.retrieval.query_modes import classify_query_mode, facts_are_thin
 from legalvault.retrieval.section_lookup import extract_section_numbers
+from legalvault.privacy.redaction import redact_message
 from legalvault.sessions.context import build_retrieval_query
 from legalvault.verification.evidence import (
     citations_supported,
@@ -352,7 +353,14 @@ def verify_evidence(
             allowed_section_numbers=allowed,
         )
         if not state["retrieved_sections"]:
-            return {**state, "verification_outcome": "passed_no_retrieval"}
+            return {
+                **state,
+                "lead": _REFUSAL_LEAD,
+                "body": _REFUSAL_BODY,
+                "citations": [],
+                "confidence": "low",
+                "verification_outcome": "refused_no_retrieval",
+            }
         if citations_ok and prose_ok and faith_ok:
             return {**state, "verification_outcome": "passed"}
         return {
@@ -377,7 +385,7 @@ def build_request_trace(state: GraphState) -> dict[str, Any]:
     ]
     return {
         "query_mode": state["query_mode"],
-        "retrieval_query": state["retrieval_query"],
+        "retrieval_query": redact_message(state["retrieval_query"]),
         "retrieval_snapshot": snapshot,
         "verification_outcome": state["verification_outcome"],
         "latency_ms": state["latency_ms"],

@@ -1,0 +1,8 @@
+.DS_Store
+*.pyc
+__pycache__/
+
+# Local Hugging Face dataset clones (see datasets/README.md)
+datasets/indian-legal-sections-bns-bnss-bsa-2023/
+datasets/Indian-Legal-QA-BNS-BNSS-BSA/
+datasets/BNS_File.pdf

@@ -60,12 +60,43 @@ def test_out_of_corpus_bsa_refusal(client, auth_headers) -> None:
     assert payload["citations"] == []
 
 
+def test_fact_pattern_empty_retrieval_refuses_substantive_claims(
+    auth_headers,
+) -> None:
+    from legalvault.api.research import _corpus_dependency
+    from legalvault.corpus.repository import SectionCorpus
+    from legalvault.main import create_app
+
+    empty_corpus = SectionCorpus(sections=())
+    app = create_app()
+    app.dependency_overrides[_corpus_dependency] = lambda: empty_corpus
+    client = TestClient(app)
+    response = client.post(
+        "/research",
+        json={
+            "query": (
+                "Someone threatened me and damaged my property. "
+                "Which BNS sections could apply?"
+            )
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query_mode"] == "fact_pattern_analysis"
+    assert payload["citations"] == []
+    assert payload["confidence"] == "low"
+    assert "retrieved evidence" in payload["lead"].lower()
+
+
 def test_fact_pattern_returns_sections_with_uncertainty_when_thin(
     client, auth_headers
 ) -> None:
     response = client.post(
         "/research",
-        json={"query": "Someone hurt me. What BNS sections could apply?"},
+        json={
+            "query": "Someone committed murder. What BNS sections could apply?"
+        },
         headers=auth_headers,
     )
     assert response.status_code == 200
