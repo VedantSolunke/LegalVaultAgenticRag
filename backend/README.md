@@ -71,7 +71,10 @@ Apply schema (`003_chat_sessions.sql` is included when you run `--apply-schema` 
 
 - `POST /sessions` — create a **chat session**
 - `GET /sessions` — list sessions for the authenticated user
+- `GET /sessions/{id}/messages` — list messages (assistant rows include structured `research` with citations)
 - `POST /sessions/{id}/messages` — send a message, run research, persist **redacted** user/assistant rows
+
+The API sets CORS for `http://localhost:3000` by default (`LEGALVAULT_CORS_ORIGINS`, comma-separated).
 
 ## Debug traces
 

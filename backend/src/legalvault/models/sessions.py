@@ -20,6 +20,11 @@ class SessionMessage(BaseModel):
     role: str
     body: str
     created_at: datetime
+    research: ResearchResponse | None = None
+
+
+class SessionMessagesResponse(BaseModel):
+    messages: list[SessionMessage]
 
 
 class CreateSessionResponse(BaseModel):

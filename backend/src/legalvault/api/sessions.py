@@ -14,6 +14,7 @@ from legalvault.models.sessions import (
     PostMessageRequest,
     PostMessageResponse,
     SessionListResponse,
+    SessionMessagesResponse,
 )
 from legalvault.sessions.repository import SessionStore
 
@@ -62,6 +63,22 @@ def list_sessions(
 ) -> SessionListResponse:
     sessions = store.list_sessions(user.user_id)
     return SessionListResponse(sessions=sessions)
+
+
+@router.get("/{session_id}/messages", response_model=SessionMessagesResponse)
+def list_session_messages(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    store: SessionStore = Depends(_require_session_store),
+) -> SessionMessagesResponse:
+    session = store.get_session_for_user(user.user_id, session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    messages = store.load_messages(session_id)
+    return SessionMessagesResponse(messages=messages)
 
 
 @router.post("/{session_id}/messages", response_model=PostMessageResponse)

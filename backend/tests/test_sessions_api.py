@@ -145,6 +145,45 @@ def test_session_isolation_returns_not_found_for_other_user(
     assert response.status_code == 404
 
 
+def test_list_session_messages_returns_user_and_assistant_with_research(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    created = session_client.post("/sessions", headers=auth_headers)
+    session_id = created.json()["session"]["id"]
+
+    posted = session_client.post(
+        f"/sessions/{session_id}/messages",
+        json={"query": "What is BNS section 101?"},
+        headers=auth_headers,
+    )
+    assert posted.status_code == 200
+
+    listed = session_client.get(f"/sessions/{session_id}/messages", headers=auth_headers)
+    assert listed.status_code == 200
+    messages = listed.json()["messages"]
+    assert len(messages) == 2
+    assert messages[0]["role"] == "user"
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["research"] is not None
+    assert messages[1]["research"]["citations"]
+
+
+def test_list_session_messages_isolated_between_users(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+    auth_headers_user_b: dict[str, str],
+) -> None:
+    created = session_client.post("/sessions", headers=auth_headers)
+    session_id = created.json()["session"]["id"]
+
+    response = session_client.get(
+        f"/sessions/{session_id}/messages",
+        headers=auth_headers_user_b,
+    )
+    assert response.status_code == 404
+
+
 def test_follow_up_in_session_can_reference_prior_section(
     session_client: TestClient,
     auth_headers: dict[str, str],
