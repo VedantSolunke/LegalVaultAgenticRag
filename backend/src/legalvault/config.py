@@ -1,4 +1,6 @@
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,6 +11,9 @@ class Settings(BaseSettings):
     test_auth_token: str = "test-user-token"
     # Reserved for Supabase JWT verification and environment-specific config.
     supabase_jwt_secret: str | None = None
+    corpus_backend: Literal["fixture", "postgres"] = "fixture"
+    database_url: str | None = None
+    bns_sections_json_path: Path | None = None
 
 
 @lru_cache

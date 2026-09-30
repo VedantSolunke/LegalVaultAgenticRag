@@ -39,13 +39,16 @@ def classify_query(state: GraphState) -> GraphState:
         }
     return {
         **state,
-        "query_mode": "unsupported",
+        "query_mode": "legal_concept_lookup",
         "requested_section_numbers": [],
     }
 
 
 def retrieve_sections(state: GraphState, *, corpus: SectionCorpus) -> GraphState:
-    sections = corpus.lookup_by_section_numbers(state["requested_section_numbers"])
+    sections = corpus.hybrid_retrieve(
+        state["query"],
+        section_numbers=state["requested_section_numbers"],
+    )
     return {**state, "retrieved_sections": sections}
 
 
@@ -74,21 +77,28 @@ def compose_response(
         for s in state["retrieved_sections"]
     ]
 
-    primary = state["retrieved_sections"][0]
-    primary_excerpt = _excerpt(primary.text)
-    draft = llm.compose_section_lookup(
-        section_number=primary.section_number,
-        title=primary.title,
-        excerpt=primary_excerpt,
-    )
-
-    if len(state["retrieved_sections"]) > 1:
-        extra = ", ".join(
-            str(s.section_number) for s in state["retrieved_sections"][1:]
+    if state["query_mode"] == "legal_concept_lookup":
+        draft = llm.compose_legal_concept_lookup(
+            query=state["query"],
+            sections=state["retrieved_sections"],
         )
-        body = draft.body + f"\n\nAlso retrieved from the corpus: sections {extra}."
-    else:
         body = draft.body
+    else:
+        primary = state["retrieved_sections"][0]
+        primary_excerpt = _excerpt(primary.text)
+        draft = llm.compose_section_lookup(
+            section_number=primary.section_number,
+            title=primary.title,
+            excerpt=primary_excerpt,
+        )
+
+        if len(state["retrieved_sections"]) > 1:
+            extra = ", ".join(
+                str(s.section_number) for s in state["retrieved_sections"][1:]
+            )
+            body = draft.body + f"\n\nAlso retrieved from the corpus: sections {extra}."
+        else:
+            body = draft.body
 
     return {
         **state,
