@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LegalVault",
-  description: "BNS legal research assistant for trusted users",
+  description: "BNS legal research assistant — portfolio demo",
 };
 
 export default function RootLayout({

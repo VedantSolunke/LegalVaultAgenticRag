@@ -1,6 +1,8 @@
-# Eval quality gate (ADR-0013)
+# Eval quality gate (ADR-0013, portfolio policy ADR-0015)
 
-LegalVault widens access in two stages. While the operator is the only user, eval failures are reviewed manually and there is **no mandatory pass-rate gate**. Before the first invite-only trusted user is enabled, the same offline eval must meet explicit thresholds.
+Offline eval measures retrieval and citation validity on a fixed question set. CI runs `legalvault-eval` on every PR (fixture corpus, stub providers) and fails when any eval case fails. It does not pass `--check-invite-gate`. Use invite-gate thresholds manually before important demos or releases.
+
+ADR-0013 originally described a two-stage gate before widening access; portfolio V1 treats that gate as optional operator hygiene, not a deploy blocker.
 
 ## Question set
 
@@ -31,7 +33,7 @@ Optional QA JSONL merge:
 uv run legalvault-eval --jsonl /path/to/indian-legal-qa.jsonl
 ```
 
-Fail the command when invite-gate thresholds are not met (for CI before inviting users):
+Fail the command when invite-gate thresholds are not met (manual / pre-demo only—not CI):
 
 ```bash
 uv run legalvault-eval --check-invite-gate

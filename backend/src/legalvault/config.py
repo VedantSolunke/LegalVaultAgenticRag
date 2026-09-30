@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +25,14 @@ class Settings(BaseSettings):
     bns_sections_json_path: Path | None = None
     ipc_mapping_primary_csv: Path | None = None
     ipc_mapping_supplemental_csv: Path | None = None
+    fact_pattern_llm_faithfulness: bool = False
+
+    @field_validator("database_url", "supabase_url", "supabase_jwt_secret", mode="before")
+    @classmethod
+    def _blank_str_is_none(cls, value: str | None) -> str | None:
+        if value == "":
+            return None
+        return value
 
 
 @lru_cache

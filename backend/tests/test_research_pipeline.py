@@ -138,6 +138,8 @@ def test_section_comparison_mode(client, auth_headers) -> None:
     assert payload["query_mode"] == "section_comparison"
     cited = {c["section_number"] for c in payload["citations"]}
     assert 101 in cited and 103 in cited
+    assert payload["confidence"] == "medium"
+    assert "best-effort" in payload["body"].lower()
 
 
 @postgres_required

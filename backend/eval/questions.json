@@ -52,5 +52,13 @@
       "query_mode": "fact_pattern_analysis",
       "max_citations": 0
     }
+  },
+  {
+    "id": "rich-fact-pattern",
+    "query": "A person threatened me repeatedly, damaged my property, and then assaulted me. Which BNS sections could apply?",
+    "expect": {
+      "query_mode": "fact_pattern_analysis",
+      "min_citations": 1
+    }
   }
 ]

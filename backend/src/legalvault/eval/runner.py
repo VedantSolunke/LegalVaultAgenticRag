@@ -3,10 +3,14 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 import httpx
-from fastapi.testclient import TestClient
 
+from legalvault.corpus.mapping_repository import DEFAULT_MAPPING_STORE
+from legalvault.corpus.repository import DEFAULT_CORPUS
 from legalvault.eval.models import EvalCaseResult, EvalQuestion, EvalReport
-from legalvault.main import create_app
+from legalvault.graph.research import (
+    research_response_dict_from_state,
+    run_research_graph,
+)
 
 _CONFIDENCE_ORDER = ("low", "medium", "high")
 
@@ -16,18 +20,15 @@ class ResearchClient(Protocol):
 
 
 class InProcessResearchClient:
-    def __init__(self, token: str = "test-user-token") -> None:
-        self._client = TestClient(create_app())
-        self._headers = {"Authorization": f"Bearer {token}"}
+    """Runs the shared LangGraph pipeline on the fixture corpus (no HTTP auth)."""
 
     def post_research(self, query: str) -> dict[str, Any]:
-        response = self._client.post(
-            "/research",
-            json={"query": query},
-            headers=self._headers,
+        state = run_research_graph(
+            query,
+            corpus=DEFAULT_CORPUS,
+            mapping_store=DEFAULT_MAPPING_STORE,
         )
-        response.raise_for_status()
-        return response.json()
+        return research_response_dict_from_state(state)
 
 
 class HttpResearchClient:
@@ -171,5 +172,6 @@ def run_eval(client: ResearchClient, questions: list[EvalQuestion]) -> EvalRepor
 def run_eval_in_process(
     questions: list[EvalQuestion], *, token: str = "test-user-token"
 ) -> EvalReport:
-    return run_eval(InProcessResearchClient(token=token), questions)
+    del token  # HTTP eval uses token; in-process uses fixture corpus directly.
+    return run_eval(InProcessResearchClient(), questions)
 

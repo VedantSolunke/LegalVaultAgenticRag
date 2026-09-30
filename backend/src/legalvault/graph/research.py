@@ -241,7 +241,7 @@ def compose_response(
             "lead": draft.lead,
             "body": draft.body,
             "citations": citations,
-            "confidence": "high" if len(state["retrieved_sections"]) >= 2 else "medium",
+            "confidence": "medium",
         }
 
     if state["query_mode"] == "legal_concept_lookup":
@@ -267,12 +267,15 @@ def compose_response(
         else:
             body = draft.body
 
+    confidence = (
+        "medium" if state["query_mode"] == "legal_concept_lookup" else "high"
+    )
     return {
         **state,
         "lead": draft.lead,
         "body": body,
         "citations": citations,
-        "confidence": "high",
+        "confidence": confidence,
     }
 
 
@@ -320,12 +323,42 @@ _REFUSAL_BODY = (
 )
 
 
+def _refuse_unverified(state: GraphState, *, outcome: str) -> GraphState:
+    return {
+        **state,
+        "lead": _REFUSAL_LEAD,
+        "body": _REFUSAL_BODY,
+        "citations": [],
+        "confidence": "low",
+        "verification_outcome": outcome,
+    }
+
+
+def _verify_deterministic_prose(state: GraphState) -> GraphState:
+    allowed = frozenset(s.section_number for s in state["retrieved_sections"])
+    combined = f"{state['lead']}\n{state['body']}"
+    citations_ok = citations_supported(
+        state["citations"],
+        allowed_section_numbers=allowed,
+    )
+    prose_ok = prose_references_only_retrieved_sections(
+        combined,
+        allowed_section_numbers=allowed,
+    )
+    if not state["retrieved_sections"]:
+        return _refuse_unverified(state, outcome="refused_no_retrieval")
+    if citations_ok and prose_ok:
+        return {**state, "verification_outcome": "passed_deterministic"}
+    return _refuse_unverified(state, outcome="failed_deterministic")
+
+
 def verify_evidence(
     state: GraphState,
     *,
     corpus: SectionCorpus,
     mapping_store: MappingLookup,
     llm: StubLLMProvider,
+    fact_pattern_llm_faithfulness: bool = False,
 ) -> GraphState:
     state = verify_citations(state, corpus=corpus, mapping_store=mapping_store)
     mode = state["query_mode"]
@@ -336,42 +369,37 @@ def verify_evidence(
     if mode == "general_bns_information":
         return {**state, "verification_outcome": "skipped_meta"}
 
-    if mode in ("fact_pattern_analysis", "section_comparison"):
+    if mode == "section_comparison":
+        return _verify_deterministic_prose(state)
+
+    if mode == "fact_pattern_analysis":
+        state = _verify_deterministic_prose(state)
+        if state["verification_outcome"] != "passed_deterministic":
+            return state
+        if not fact_pattern_llm_faithfulness:
+            return {**state, "verification_outcome": "passed"}
         allowed = frozenset(s.section_number for s in state["retrieved_sections"])
-        combined = f"{state['lead']}\n{state['body']}"
-        citations_ok = citations_supported(
-            state["citations"],
-            allowed_section_numbers=allowed,
-        )
-        prose_ok = prose_references_only_retrieved_sections(
-            combined,
-            allowed_section_numbers=allowed,
-        )
         faith_ok = llm.check_faithfulness(
             lead=state["lead"],
             body=state["body"],
             allowed_section_numbers=allowed,
         )
-        if not state["retrieved_sections"]:
-            return {
-                **state,
-                "lead": _REFUSAL_LEAD,
-                "body": _REFUSAL_BODY,
-                "citations": [],
-                "confidence": "low",
-                "verification_outcome": "refused_no_retrieval",
-            }
-        if citations_ok and prose_ok and faith_ok:
+        if faith_ok:
             return {**state, "verification_outcome": "passed"}
-        return {
-            **state,
-            "lead": _REFUSAL_LEAD,
-            "body": _REFUSAL_BODY,
-            "confidence": "low",
-            "verification_outcome": "failed_faithfulness",
-        }
+        return _refuse_unverified(state, outcome="failed_faithfulness")
 
     return {**state, "verification_outcome": "passed_citations"}
+
+
+def research_response_dict_from_state(state: GraphState) -> dict[str, Any]:
+    """Eval/API-shaped payload from graph state (no auth or persistence)."""
+    return {
+        "query_mode": state["query_mode"],
+        "lead": state["lead"],
+        "body": state["body"],
+        "citations": [c.model_dump() for c in state["citations"]],
+        "confidence": state["confidence"],
+    }
 
 
 def build_request_trace(state: GraphState) -> dict[str, Any]:
@@ -397,6 +425,8 @@ def _compile_graph(
     corpus: SectionCorpus,
     mapping_store: MappingLookup,
     llm: StubLLMProvider,
+    *,
+    fact_pattern_llm_faithfulness: bool = False,
 ):
     from langgraph.graph import END, StateGraph
 
@@ -417,7 +447,11 @@ def _compile_graph(
     graph.add_node(
         "verify",
         lambda state: verify_evidence(
-            state, corpus=corpus, mapping_store=mapping_store, llm=llm
+            state,
+            corpus=corpus,
+            mapping_store=mapping_store,
+            llm=llm,
+            fact_pattern_llm_faithfulness=fact_pattern_llm_faithfulness,
         ),
     )
 
@@ -445,18 +479,30 @@ def run_research_graph(
     mapping_store: MappingLookup | None = None,
     llm: StubLLMProvider | None = None,
     conversation_history: list[tuple[str, str]] | None = None,
+    fact_pattern_llm_faithfulness: bool | None = None,
 ) -> GraphState:
     """Minimal in-process LangGraph pipeline for BNS research."""
+    from legalvault.config import get_settings
+
     llm = llm or _DEFAULT_LLM
     mapping_store = mapping_store or _DEFAULT_MAPPING_STORE
+    if fact_pattern_llm_faithfulness is None:
+        fact_pattern_llm_faithfulness = get_settings().fact_pattern_llm_faithfulness
+    faithfulness_flag = fact_pattern_llm_faithfulness
     app = (
         _COMPILED_GRAPH
         if (
             corpus is _DEFAULT_CORPUS
             and mapping_store is _DEFAULT_MAPPING_STORE
             and llm is _DEFAULT_LLM
+            and not faithfulness_flag
         )
-        else _compile_graph(corpus, mapping_store, llm)
+        else _compile_graph(
+            corpus,
+            mapping_store,
+            llm,
+            fact_pattern_llm_faithfulness=faithfulness_flag,
+        )
     )
     retrieval_query = build_retrieval_query(query, conversation_history)
     initial: GraphState = {

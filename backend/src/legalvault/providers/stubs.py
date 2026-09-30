@@ -9,6 +9,12 @@ class StubLLMResult:
     body: str
 
 
+_BEST_EFFORT_NOTE = (
+    "\n\nBest-effort summary from retrieved BNS text only—not reliable "
+    "applicability analysis or legal advice."
+)
+
+
 class StubLLMProvider:
     def compose_section_lookup(
         self, *, section_number: int, title: str, excerpt: str
@@ -38,6 +44,7 @@ class StubLLMProvider:
         body = (
             f"The hybrid retrieval pipeline returned: {titles}.\n\n"
             "Each citation excerpt is taken from the indexed GSMS-B section record only."
+            f"{_BEST_EFFORT_NOTE}"
         )
         return StubLLMResult(lead=lead, body=body)
 
@@ -125,6 +132,7 @@ class StubLLMProvider:
             f"Section {left.section_number} — {left.title}\n{left.text}\n\n"
             f"Section {right.section_number} — {right.title}\n{right.text}\n\n"
             "Differences and overlap should be verified against the full section text."
+            f"{_BEST_EFFORT_NOTE}"
         )
         return StubLLMResult(lead=lead, body=body)
 
@@ -137,6 +145,7 @@ class StubLLMProvider:
             "LegalVault answers substantive BNS questions using retrieved section records. "
             "Procedural law (BNSS), evidence law (BSA), and case law are out of corpus. "
             "This note is general orientation only—not legal advice."
+            f"{_BEST_EFFORT_NOTE}"
         )
         return StubLLMResult(lead=lead, body=body)
 

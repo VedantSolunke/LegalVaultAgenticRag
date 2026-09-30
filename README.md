@@ -1,13 +1,13 @@
 # LegalVault Agentic RAG
 
-Agentic legal research assistant focused on the Bharatiya Nyaya Sanhita (BNS). See `Requirement.md`, `GLOSSARY.md`, and `docs/adr/` for product and architecture decisions.
+Agentic legal research assistant focused on the Bharatiya Nyaya Sanhita (BNS)—built as an **AI engineering portfolio** project (deployable demo + clean repo). See `docs/portfolio-v1.md`, `GLOSSARY.md`, and `docs/adr/` for scope and decisions.
 
 ## Components
 
 | Path | Role |
 |------|------|
 | `backend/` | FastAPI research API, LangGraph pipeline, Postgres/pgvector corpus |
-| `web/` | Next.js UI for trusted users (chat sessions, citations, disclaimer) |
+| `web/` | Next.js UI for registered users (chat sessions, citations, disclaimer) |
 | `datasets/` | BNS PDF, IPC mapping CSVs, GSMS-B JSON (when present) |
 
 ## Quick start (local UI + API)
@@ -33,6 +33,19 @@ npm install
 npm run dev
 ```
 
-Use `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN=test-user-token` in `web/.env.local` when the API runs without Supabase JWT verification (local only). For Supabase Auth, configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` on the web app; set `LEGALVAULT_SUPABASE_URL` in `backend/.env` (the API verifies access tokens via JWKS). Apply `backend/sql/005_auth_profile_on_signup.sql` on Supabase after `003_chat_sessions.sql`. See `web/README.md` and ADR-0014.
+### Authentication
 
-More detail: `backend/README.md`, `web/README.md`.
+**Deployed demo:** public email signup via Supabase Auth (ADR-0014). Configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` on the web app; set `LEGALVAULT_SUPABASE_URL` in `backend/.env` (JWT verification via JWKS). Apply `backend/sql/003_chat_sessions.sql` and `005_auth_profile_on_signup.sql` on Supabase.
+
+**Local without Supabase:** set `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN=test-user-token` in `web/.env.local` when the API accepts the dev test token (local only).
+
+Set `is_admin` on your profile to view debug traces (interview demos only).
+
+### Deployment shape (portfolio V1)
+
+- **Web:** Vercel (Next.js)
+- **API:** container host (Railway, Fly, etc.) for FastAPI + LangGraph
+- **Data / auth:** Supabase (Postgres, pgvector, Auth)
+- **Local:** `docker compose` for Postgres; run API and web on the host
+
+More detail: `docs/portfolio-v1.md`, `backend/README.md`, `web/README.md`.

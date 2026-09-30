@@ -12,3 +12,5 @@ def test_legal_concept_lookup_retrieves_murder_section(client, auth_headers) -> 
     assert payload["query_mode"] == "legal_concept_lookup"
     cited = {c["section_number"] for c in payload["citations"]}
     assert 101 in cited
+    assert payload["confidence"] == "medium"
+    assert "best-effort" in payload["body"].lower()

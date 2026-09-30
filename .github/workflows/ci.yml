@@ -39,6 +39,11 @@ jobs:
         run: uv sync --extra dev
       - name: Run tests
         run: uv run pytest
+      - name: Run offline eval
+        run: uv run legalvault-eval
+        env:
+          LEGALVAULT_SUPABASE_URL: ""
+          LEGALVAULT_SUPABASE_JWT_SECRET: ""
 
   web-checks:
     runs-on: ubuntu-latest

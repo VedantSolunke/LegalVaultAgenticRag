@@ -43,6 +43,11 @@ A query where the user describes circumstances in natural language and asks whic
 
 _Avoid_: Situation-to-law (informal)
 
+**Best-effort query mode**:
+Legal concept lookup, section comparison, or general BNS information within corpus—supported when retrieval helps, but the research response must state limits and uncertainty rather than imply reliable applicability analysis.
+
+_Avoid_: Secondary mode (informal)
+
 ## Product boundaries
 
 **Legal research assistant**:
@@ -73,7 +78,7 @@ The set of section records (and mapping records when relevant) passed into answe
 _Avoid_: Context, RAG context
 
 **Evidence verification**:
-A pipeline step that checks that statutory claims in the draft answer are supported by retrieved evidence before the user sees the research response.
+The check that blocks or revises a draft research response when citations or stated BNS section numbers are not supported by retrieved evidence.
 
 _Avoid_: Guardrail pass, fact check (generic)
 
@@ -96,13 +101,13 @@ _Avoid_: Score, probability
 
 ## Access and privacy
 
-**Trusted user**:
-A person with a Supabase account you provision for v1; registration is invite-only, not open to the public internet.
+**Registered user**:
+A person with a Supabase account who can use the deployed chat demo (email signup on the portfolio instance).
 
 _Avoid_: Beta user, tester (ambiguous)
 
 **Admin user**:
-A trusted user whose profile is marked to view debug traces and operator detail; default users see citations and confidence only.
+A registered user whose profile is marked to view debug traces and operator detail; default users see citations and confidence only.
 
 _Avoid_: Superuser, root
 
