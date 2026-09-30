@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     corpus_backend: Literal["fixture", "postgres"] = "fixture"
     database_url: str | None = None
     bns_sections_json_path: Path | None = None
+    ipc_mapping_primary_csv: Path | None = None
+    ipc_mapping_supplemental_csv: Path | None = None
 
 
 @lru_cache

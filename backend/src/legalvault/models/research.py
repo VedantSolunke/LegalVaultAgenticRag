@@ -15,6 +15,8 @@ class SectionCitation(BaseModel):
     title: str
     excerpt: str
     act: str = "BNS"
+    ipc_section_number: int | None = None
+    mapping_source: str | None = None
 
 
 class ResearchRequest(BaseModel):
