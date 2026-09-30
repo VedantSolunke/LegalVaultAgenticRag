@@ -10,6 +10,7 @@ _SCHEMA_FILES = (
     _SQL_DIR / "002_ipc_mappings.sql",
     _SQL_DIR / "003_chat_sessions.sql",
     _SQL_DIR / "004_request_traces.sql",
+    _SQL_DIR / "005_auth_profile_on_signup.sql",
 )
 
 

@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "pyjwt>=2.9.0",
     "cryptography>=50.0.2",
+    "google-genai>=2.25.0",
 ]
 
 [project.optional-dependencies]

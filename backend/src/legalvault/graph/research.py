@@ -5,6 +5,7 @@ from legalvault.corpus.mapping_repository import DEFAULT_MAPPING_STORE
 from legalvault.corpus.repository import DEFAULT_CORPUS, SectionCorpus
 from legalvault.models.mapping import MappingRecord
 from legalvault.models.research import SectionCitation, SectionRecord
+from legalvault.providers.llm_factory import get_llm_provider
 from legalvault.providers.stubs import StubLLMProvider
 from legalvault.retrieval.ipc_lookup import extract_ipc_section_numbers
 from legalvault.retrieval.query_modes import classify_query_mode, facts_are_thin
@@ -466,9 +467,8 @@ def _compile_graph(
 
 _DEFAULT_CORPUS = DEFAULT_CORPUS
 _DEFAULT_MAPPING_STORE = DEFAULT_MAPPING_STORE
-_DEFAULT_LLM = StubLLMProvider()
-_COMPILED_GRAPH = _compile_graph(
-    _DEFAULT_CORPUS, _DEFAULT_MAPPING_STORE, _DEFAULT_LLM
+_STUB_COMPILED_GRAPH = _compile_graph(
+    _DEFAULT_CORPUS, _DEFAULT_MAPPING_STORE, StubLLMProvider()
 )
 
 
@@ -484,19 +484,20 @@ def run_research_graph(
     """Minimal in-process LangGraph pipeline for BNS research."""
     from legalvault.config import get_settings
 
-    llm = llm or _DEFAULT_LLM
+    llm = llm or get_llm_provider()
     mapping_store = mapping_store or _DEFAULT_MAPPING_STORE
     if fact_pattern_llm_faithfulness is None:
         fact_pattern_llm_faithfulness = get_settings().fact_pattern_llm_faithfulness
     faithfulness_flag = fact_pattern_llm_faithfulness
+    use_stub_cache = (
+        corpus is _DEFAULT_CORPUS
+        and mapping_store is _DEFAULT_MAPPING_STORE
+        and isinstance(llm, StubLLMProvider)
+        and not faithfulness_flag
+    )
     app = (
-        _COMPILED_GRAPH
-        if (
-            corpus is _DEFAULT_CORPUS
-            and mapping_store is _DEFAULT_MAPPING_STORE
-            and llm is _DEFAULT_LLM
-            and not faithfulness_flag
-        )
+        _STUB_COMPILED_GRAPH
+        if use_stub_cache
         else _compile_graph(
             corpus,
             mapping_store,

@@ -2,6 +2,17 @@
 
 End-to-end checklist for the public demo (ADR-0015). Local development stays on Docker Compose Postgres plus host-run API/web—see root `README.md`.
 
+## Local machine (your `.env` setup)
+
+1. **Web:** `NEXT_PUBLIC_SITE_URL=http://localhost:3000` in `web/.env.local` (done for email redirects).
+2. **Backend:** `LEGALVAULT_CORPUS_BACKEND=postgres`, `LEGALVAULT_DATABASE_URL`, `LEGALVAULT_SUPABASE_URL`, and `GEMINI_API_KEY` (read by the API). Restart the API after changing `.env`.
+3. **One-time on Supabase:** apply schema (ingest CLIs run `apply_schema`, including `005_auth_profile_on_signup.sql`).
+4. **Ingest:** `legalvault-ingest-bns` + `legalvault-ingest-ipc-mapping` (358 BNS sections + IPC mappings when using GSMS-B JSON under `datasets/`).
+5. **Supabase Auth → URL configuration:** Site URL `http://localhost:3000`; redirect allowlist `http://localhost:3000/auth/callback`, `http://localhost:3000/reset-password`.
+6. Run `uv run legalvault-api` (backend) and `npm run dev` (web). Sign up via Supabase—not the dev bearer token while `LEGALVAULT_SUPABASE_URL` is set.
+
+Embeddings for ingest still use the deterministic stub (768-dim pgvector schema). `GEMINI_EMBEDDING_*` in `.env` is not wired yet; live Gemini is used for answer composition when `GEMINI_API_KEY` is set.
+
 ## 1. Supabase project
 
 1. Create a Supabase project with **pgvector** enabled.

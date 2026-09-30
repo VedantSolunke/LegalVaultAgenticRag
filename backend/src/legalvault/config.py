@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     ipc_mapping_primary_csv: Path | None = None
     ipc_mapping_supplemental_csv: Path | None = None
     fact_pattern_llm_faithfulness: bool = False
+    gemini_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LEGALVAULT_GEMINI_API_KEY", "GEMINI_API_KEY"),
+    )
+    gemini_model: str = Field(
+        default="gemini-2.0-flash",
+        validation_alias=AliasChoices("LEGALVAULT_GEMINI_MODEL", "GEMINI_MODEL"),
+    )
 
     @field_validator("database_url", "supabase_url", "supabase_jwt_secret", mode="before")
     @classmethod
