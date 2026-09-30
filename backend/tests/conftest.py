@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -15,11 +13,10 @@ def _isolate_settings_from_local_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LEGALVAULT_CORPUS_BACKEND", "fixture")
     monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("LEGALVAULT_GEMINI_API_KEY", "")
-    test_db = os.environ.get("LEGALVAULT_TEST_DATABASE_URL")
-    if test_db:
-        monkeypatch.setenv("LEGALVAULT_DATABASE_URL", test_db)
-    else:
-        monkeypatch.setenv("LEGALVAULT_DATABASE_URL", "")
+    # Postgres integration tests set LEGALVAULT_DATABASE_URL in their own fixtures
+    # after apply_schema; do not inherit LEGALVAULT_TEST_DATABASE_URL globally (CI sets
+    # that for opt-in tests only — otherwise /research tries to write request_traces).
+    monkeypatch.setenv("LEGALVAULT_DATABASE_URL", "")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

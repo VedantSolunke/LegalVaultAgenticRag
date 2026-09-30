@@ -207,6 +207,66 @@ def test_list_session_messages_isolated_between_users(
     assert response.status_code == 404
 
 
+def test_first_message_sets_session_title_from_prompt(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    created = session_client.post("/sessions", headers=auth_headers)
+    session_id = created.json()["session"]["id"]
+
+    session_client.post(
+        f"/sessions/{session_id}/messages",
+        json={"query": "What is BNS section 101?"},
+        headers=auth_headers,
+    )
+
+    listed = session_client.get("/sessions", headers=auth_headers)
+    session = next(s for s in listed.json()["sessions"] if s["id"] == session_id)
+    assert session["title"] == "What is BNS section 101?"
+
+
+def test_delete_session_removes_session_and_messages(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    created = session_client.post("/sessions", headers=auth_headers)
+    session_id = created.json()["session"]["id"]
+    session_client.post(
+        f"/sessions/{session_id}/messages",
+        json={"query": "What is BNS section 101?"},
+        headers=auth_headers,
+    )
+
+    deleted = session_client.delete(f"/sessions/{session_id}", headers=auth_headers)
+    assert deleted.status_code == 204
+
+    listed = session_client.get("/sessions", headers=auth_headers)
+    assert session_id not in {s["id"] for s in listed.json()["sessions"]}
+
+    with psycopg.connect(_database_url()) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = %s",
+                (session_id,),
+            )
+            assert cur.fetchone()[0] == 0
+
+
+def test_delete_session_isolated_between_users(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+    auth_headers_user_b: dict[str, str],
+) -> None:
+    created = session_client.post("/sessions", headers=auth_headers)
+    session_id = created.json()["session"]["id"]
+
+    response = session_client.delete(
+        f"/sessions/{session_id}",
+        headers=auth_headers_user_b,
+    )
+    assert response.status_code == 404
+
+
 def test_follow_up_in_session_can_reference_prior_section(
     session_client: TestClient,
     auth_headers: dict[str, str],

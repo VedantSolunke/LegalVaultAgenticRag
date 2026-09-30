@@ -17,6 +17,7 @@ from legalvault.models.sessions import (
     SessionMessagesResponse,
 )
 from legalvault.sessions.repository import SessionStore
+from legalvault.sessions.title import session_title_from_first_prompt
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -63,6 +64,20 @@ def list_sessions(
 ) -> SessionListResponse:
     sessions = store.list_sessions(user.user_id)
     return SessionListResponse(sessions=sessions)
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(
+    session_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    store: SessionStore = Depends(_require_session_store),
+) -> None:
+    deleted = store.delete_session(user.user_id, session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
 
 
 @router.get("/{session_id}/messages", response_model=SessionMessagesResponse)
@@ -114,6 +129,12 @@ def post_session_message(
     )
     if trace_id is not None:
         research = research.model_copy(update={"trace_id": trace_id})
+
+    if session.title is None:
+        store.set_session_title_if_empty(
+            session_id,
+            session_title_from_first_prompt(body.query),
+        )
 
     user_message = store.append_message(
         session_id,

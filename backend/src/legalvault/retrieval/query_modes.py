@@ -49,8 +49,9 @@ _APPLICABILITY_MARKERS = (
     "provision",
 )
 
+_PURE_META_WHAT_IS_THE_BNS = re.compile(r"what is the bns\s*\??\s*$", re.I)
+
 _GENERAL_BNS_PATTERNS = (
-    "what is the bns",
     "what is bharatiya nyaya",
     "when did bns",
     "how to read a bns section",
@@ -85,7 +86,9 @@ def is_fact_pattern_query(text: str) -> bool:
 def is_general_bns_information_query(text: str) -> bool:
     if extract_section_numbers(text):
         return False
-    lowered = text.lower()
+    lowered = text.lower().strip()
+    if _PURE_META_WHAT_IS_THE_BNS.fullmatch(lowered):
+        return True
     return any(pattern in lowered for pattern in _GENERAL_BNS_PATTERNS)
 
 

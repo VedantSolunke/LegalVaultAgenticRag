@@ -56,6 +56,34 @@ class SessionStore:
                 rows = cur.fetchall()
         return [ChatSession.model_validate(row) for row in rows]
 
+    def set_session_title_if_empty(self, session_id: UUID, title: str) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE chat_sessions
+                    SET title = %s, updated_at = now()
+                    WHERE id = %s AND title IS NULL
+                    """,
+                    (title, session_id),
+                )
+            conn.commit()
+
+    def delete_session(self, user_id: str, session_id: UUID) -> bool:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM chat_sessions
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (session_id, user_id),
+                )
+                deleted = cur.fetchone() is not None
+            conn.commit()
+        return deleted
+
     def get_session_for_user(self, user_id: str, session_id: UUID) -> ChatSession | None:
         with self._connect() as conn:
             with conn.cursor() as cur:

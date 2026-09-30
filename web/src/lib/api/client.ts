@@ -44,7 +44,16 @@ async function request<T>(
     throw new ApiError(detail, response.status);
   }
 
-  return (await response.json()) as T;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export async function listSessions(accessToken: string): Promise<ChatSession[]> {
@@ -60,6 +69,15 @@ export async function createSession(accessToken: string): Promise<ChatSession> {
     method: "POST",
   });
   return data.session;
+}
+
+export async function deleteSession(
+  accessToken: string,
+  sessionId: string,
+): Promise<void> {
+  await request<void>(`/sessions/${sessionId}`, accessToken, {
+    method: "DELETE",
+  });
 }
 
 export async function listSessionMessages(
