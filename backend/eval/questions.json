@@ -1,0 +1,56 @@
+[
+  {
+    "id": "section-101",
+    "query": "What is BNS section 101?",
+    "expect": {
+      "query_mode": "section_lookup",
+      "min_citations": 1,
+      "required_section_numbers": [101]
+    }
+  },
+  {
+    "id": "section-103",
+    "query": "BNS section 103",
+    "expect": {
+      "query_mode": "section_lookup",
+      "min_citations": 1,
+      "required_section_numbers": [103]
+    }
+  },
+  {
+    "id": "section-comparison",
+    "query": "What is the difference between BNS section 101 and section 103?",
+    "expect": {
+      "query_mode": "section_comparison",
+      "min_citations": 2,
+      "required_section_numbers": [101, 103]
+    }
+  },
+  {
+    "id": "ipc-302",
+    "query": "What happened to IPC section 302?",
+    "expect": {
+      "query_mode": "ipc_to_bns_mapping",
+      "min_citations": 1,
+      "required_section_numbers": [101],
+      "required_ipc_section_numbers": [302],
+      "min_confidence": "high"
+    }
+  },
+  {
+    "id": "out-of-corpus-bnss",
+    "query": "What does BNSS say about bail procedures?",
+    "expect": {
+      "query_mode": "out_of_corpus",
+      "max_citations": 0
+    }
+  },
+  {
+    "id": "thin-fact-pattern",
+    "query": "Someone hurt me. What BNS sections could apply?",
+    "expect": {
+      "query_mode": "fact_pattern_analysis",
+      "max_citations": 0
+    }
+  }
+]

@@ -13,6 +13,10 @@ Agentic legal research assistant focused on the Bharatiya Nyaya Sanhita (BNS). S
 ## Quick start (local UI + API)
 
 ```bash
+# Full stack (Postgres + API + web)
+docker compose up --build
+
+# Or run services individually:
 # Database
 docker compose up -d postgres
 

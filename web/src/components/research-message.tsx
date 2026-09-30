@@ -1,6 +1,7 @@
 import { formatQueryMode } from "@/lib/api/client";
 import type { ResearchResponse } from "@/lib/types";
 
+import { AdminDebugTrace } from "./admin-debug-trace";
 import { CitationCard } from "./citation-card";
 import { DisclaimerBanner } from "./disclaimer-banner";
 
@@ -8,7 +9,15 @@ function confidenceLabel(confidence: string): string {
   return confidence.replaceAll("_", " ");
 }
 
-export function ResearchMessage({ research }: { research: ResearchResponse }) {
+export function ResearchMessage({
+  research,
+  accessToken,
+  isAdmin,
+}: {
+  research: ResearchResponse;
+  accessToken?: string | null;
+  isAdmin?: boolean;
+}) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
@@ -34,6 +43,9 @@ export function ResearchMessage({ research }: { research: ResearchResponse }) {
         </section>
       )}
       <DisclaimerBanner text={research.disclaimer} />
+      {isAdmin && accessToken && research.trace_id && (
+        <AdminDebugTrace accessToken={accessToken} traceId={research.trace_id} />
+      )}
     </div>
   );
 }

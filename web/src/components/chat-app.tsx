@@ -23,7 +23,7 @@ function sessionLabel(session: ChatSession): string {
 
 export function ChatApp() {
   const router = useRouter();
-  const { accessToken, ready, signOut } = useAuth();
+  const { accessToken, isAdmin, ready, signOut } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -214,7 +214,11 @@ export function ChatApp() {
                 {message.role === "user" ? (
                   <p className="whitespace-pre-wrap text-sm">{message.body}</p>
                 ) : message.research ? (
-                  <ResearchMessage research={message.research} />
+                  <ResearchMessage
+                    research={message.research}
+                    accessToken={accessToken}
+                    isAdmin={isAdmin}
+                  />
                 ) : (
                   <p className="whitespace-pre-wrap text-sm text-slate-800">{message.body}</p>
                 )}

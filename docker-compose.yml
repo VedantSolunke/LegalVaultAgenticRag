@@ -9,6 +9,48 @@ services:
       - "5432:5432"
     volumes:
       - legalvault_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d legalvault"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      LEGALVAULT_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/legalvault
+      LEGALVAULT_CORPUS_BACKEND: fixture
+      LEGALVAULT_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_LEGALVAULT_API_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_LEGALVAULT_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  purge-sessions:
+    profiles: ["ops"]
+    build:
+      context: ./backend
+    environment:
+      LEGALVAULT_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/legalvault
+      LEGALVAULT_SESSION_TTL_DAYS: "30"
+    entrypoint: ["uv", "run", "legalvault-purge-sessions"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   legalvault_pgdata:

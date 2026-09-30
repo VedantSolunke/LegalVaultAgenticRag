@@ -24,6 +24,8 @@ dev = [
 legalvault-api = "legalvault.main:run"
 legalvault-ingest-bns = "legalvault.cli.ingest_bns:main"
 legalvault-ingest-ipc-mapping = "legalvault.cli.ingest_ipc_mapping:main"
+legalvault-eval = "legalvault.cli.eval:main"
+legalvault-purge-sessions = "legalvault.cli.purge_sessions:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]
