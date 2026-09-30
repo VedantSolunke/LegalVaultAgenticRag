@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = None
     corpus_backend: Literal["fixture", "postgres"] = "fixture"
     database_url: str | None = None
+    cors_origins: str = "http://localhost:3000"
     bns_sections_json_path: Path | None = None
     ipc_mapping_primary_csv: Path | None = None
     ipc_mapping_supplemental_csv: Path | None = None

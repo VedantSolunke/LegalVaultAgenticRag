@@ -72,14 +72,22 @@ class SessionStore:
             return None
         return ChatSession.model_validate(row)
 
+    def _row_to_session_message(self, row: dict) -> SessionMessage:
+        data = dict(row)
+        research_raw = data.pop("research_response", None)
+        research = (
+            ResearchResponse.model_validate(research_raw) if research_raw else None
+        )
+        return SessionMessage.model_validate({**data, "research": research})
+
     def load_recent_messages(self, session_id: UUID, limit: int = MAX_CONTEXT_TURNS) -> list[SessionMessage]:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, session_id, role, body, created_at
+                    SELECT id, session_id, role, body, created_at, research_response
                     FROM (
-                        SELECT id, session_id, role, body, created_at
+                        SELECT id, session_id, role, body, created_at, research_response
                         FROM messages
                         WHERE session_id = %s
                         ORDER BY created_at DESC
@@ -90,7 +98,22 @@ class SessionStore:
                     (session_id, limit),
                 )
                 rows = cur.fetchall()
-        return [SessionMessage.model_validate(row) for row in rows]
+        return [self._row_to_session_message(dict(row)) for row in rows]
+
+    def load_messages(self, session_id: UUID) -> list[SessionMessage]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, session_id, role, body, created_at, research_response
+                    FROM messages
+                    WHERE session_id = %s
+                    ORDER BY created_at ASC
+                    """,
+                    (session_id,),
+                )
+                rows = cur.fetchall()
+        return [self._row_to_session_message(dict(row)) for row in rows]
 
     def append_message(
         self,
