@@ -10,6 +10,7 @@ from legalvault.retrieval.ipc_lookup import (
     is_ipc_mapping_query,
 )
 from legalvault.retrieval.section_lookup import extract_section_numbers
+from legalvault.sessions.context import build_retrieval_query
 
 DISCLAIMER = (
     "LegalVault is a legal research assistant, not legal advice. "
@@ -26,6 +27,7 @@ class MappingLookup(Protocol):
 
 class GraphState(TypedDict):
     query: str
+    retrieval_query: str
     query_mode: str
     requested_section_numbers: list[int]
     requested_ipc_section_numbers: list[int]
@@ -45,16 +47,17 @@ def _excerpt(text: str, max_len: int = 280) -> str:
 
 
 def classify_query(state: GraphState) -> GraphState:
-    if is_ipc_mapping_query(state["query"]):
+    classification_text = state["retrieval_query"]
+    if is_ipc_mapping_query(classification_text):
         return {
             **state,
             "query_mode": "ipc_to_bns_mapping",
             "requested_ipc_section_numbers": extract_ipc_section_numbers(
-                state["query"]
+                classification_text
             ),
             "requested_section_numbers": [],
         }
-    numbers = extract_section_numbers(state["query"])
+    numbers = extract_section_numbers(classification_text)
     if numbers:
         return {
             **state,
@@ -92,7 +95,7 @@ def retrieve_sections(state: GraphState, *, corpus: SectionCorpus) -> GraphState
         return {**state, "retrieved_sections": sections}
 
     sections = corpus.hybrid_retrieve(
-        state["query"],
+        state["retrieval_query"],
         section_numbers=state["requested_section_numbers"],
     )
     return {**state, "retrieved_sections": sections}
@@ -302,6 +305,7 @@ def run_research_graph(
     corpus: SectionCorpus,
     mapping_store: MappingLookup | None = None,
     llm: StubLLMProvider | None = None,
+    conversation_history: list[tuple[str, str]] | None = None,
 ) -> GraphState:
     """Minimal in-process LangGraph pipeline for BNS research."""
     llm = llm or _DEFAULT_LLM
@@ -315,8 +319,10 @@ def run_research_graph(
         )
         else _compile_graph(corpus, mapping_store, llm)
     )
+    retrieval_query = build_retrieval_query(query, conversation_history)
     initial: GraphState = {
         "query": query,
+        "retrieval_query": retrieval_query,
         "query_mode": "",
         "requested_section_numbers": [],
         "requested_ipc_section_numbers": [],

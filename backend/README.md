@@ -65,6 +65,14 @@ uv run legalvault-ingest-ipc-mapping --apply-schema \
   --primary-csv datasets/ipc-mapping/jbp123_comparative_table.csv
 ```
 
+## Chat sessions (Supabase / Postgres)
+
+Apply schema (`003_chat_sessions.sql` is included when you run `--apply-schema` on ingest CLIs or `apply_schema` in tests). Set `LEGALVAULT_DATABASE_URL` and use a Supabase JWT or the dev test bearer tokens.
+
+- `POST /sessions` — create a **chat session**
+- `GET /sessions` — list sessions for the authenticated user
+- `POST /sessions/{id}/messages` — send a message, run research, persist **redacted** user/assistant rows
+
 ## Tests
 
 Integration tests hit the HTTP API with fixture corpus and stub providers (no live Gemini). Postgres tests use `LEGALVAULT_TEST_DATABASE_URL` when a database is available (CI provides one):
