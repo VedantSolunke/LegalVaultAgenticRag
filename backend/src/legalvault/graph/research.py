@@ -1,8 +1,14 @@
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
+from legalvault.corpus.mapping_repository import DEFAULT_MAPPING_STORE
 from legalvault.corpus.repository import DEFAULT_CORPUS, SectionCorpus
+from legalvault.models.mapping import MappingRecord
 from legalvault.models.research import SectionCitation, SectionRecord
 from legalvault.providers.stubs import StubLLMProvider
+from legalvault.retrieval.ipc_lookup import (
+    extract_ipc_section_numbers,
+    is_ipc_mapping_query,
+)
 from legalvault.retrieval.section_lookup import extract_section_numbers
 
 DISCLAIMER = (
@@ -11,10 +17,19 @@ DISCLAIMER = (
 )
 
 
+class MappingLookup(Protocol):
+    def lookup_by_ipc_numbers(self, numbers: list[int]) -> list[MappingRecord]: ...
+
+    @property
+    def known_ipc_sections(self) -> frozenset[int]: ...
+
+
 class GraphState(TypedDict):
     query: str
     query_mode: str
     requested_section_numbers: list[int]
+    requested_ipc_section_numbers: list[int]
+    retrieved_mappings: list[MappingRecord]
     retrieved_sections: list[SectionRecord]
     lead: str
     body: str
@@ -30,21 +45,52 @@ def _excerpt(text: str, max_len: int = 280) -> str:
 
 
 def classify_query(state: GraphState) -> GraphState:
+    if is_ipc_mapping_query(state["query"]):
+        return {
+            **state,
+            "query_mode": "ipc_to_bns_mapping",
+            "requested_ipc_section_numbers": extract_ipc_section_numbers(
+                state["query"]
+            ),
+            "requested_section_numbers": [],
+        }
     numbers = extract_section_numbers(state["query"])
     if numbers:
         return {
             **state,
             "query_mode": "section_lookup",
             "requested_section_numbers": numbers,
+            "requested_ipc_section_numbers": [],
         }
     return {
         **state,
         "query_mode": "legal_concept_lookup",
         "requested_section_numbers": [],
+        "requested_ipc_section_numbers": [],
     }
 
 
+def retrieve_mappings(
+    state: GraphState, *, mapping_store: MappingLookup
+) -> GraphState:
+    if state["query_mode"] != "ipc_to_bns_mapping":
+        return {**state, "retrieved_mappings": []}
+    mappings = mapping_store.lookup_by_ipc_numbers(
+        state["requested_ipc_section_numbers"]
+    )
+    return {**state, "retrieved_mappings": mappings}
+
+
 def retrieve_sections(state: GraphState, *, corpus: SectionCorpus) -> GraphState:
+    if state["query_mode"] == "ipc_to_bns_mapping":
+        bns_numbers: list[int] = []
+        for mapping in state["retrieved_mappings"]:
+            for number in mapping.bns_section_numbers:
+                if number not in bns_numbers:
+                    bns_numbers.append(number)
+        sections = corpus.lookup_by_section_numbers(bns_numbers)
+        return {**state, "retrieved_sections": sections}
+
     sections = corpus.hybrid_retrieve(
         state["query"],
         section_numbers=state["requested_section_numbers"],
@@ -52,9 +98,70 @@ def retrieve_sections(state: GraphState, *, corpus: SectionCorpus) -> GraphState
     return {**state, "retrieved_sections": sections}
 
 
+def _mapping_provenance_citation(
+    mapping: MappingRecord,
+) -> SectionCitation:
+    targets = ", ".join(str(n) for n in mapping.bns_section_numbers)
+    ipc_title = mapping.ipc_title or "IPC section"
+    return SectionCitation(
+        section_number=mapping.ipc_section_number,
+        title=f"{ipc_title} (IPC → BNS mapping)",
+        excerpt=(
+            f"Ingested mapping links IPC section {mapping.ipc_section_number} "
+            f"to BNS section(s) {targets}."
+        ),
+        act="IPC",
+        ipc_section_number=mapping.ipc_section_number,
+        mapping_source=mapping.source,
+    )
+
+
 def compose_response(
     state: GraphState, *, llm: StubLLMProvider
 ) -> GraphState:
+    if state["query_mode"] == "ipc_to_bns_mapping":
+        if not state["retrieved_mappings"]:
+            return {
+                **state,
+                "lead": (
+                    "No ingested IPC→BNS mapping records were found for this query."
+                ),
+                "body": (
+                    "Try a known IPC section from the curated mapping datasets, "
+                    "for example “What happened to IPC section 302?”"
+                ),
+                "citations": [],
+                "confidence": "low",
+            }
+
+        mapping = state["retrieved_mappings"][0]
+        citations: list[SectionCitation] = [_mapping_provenance_citation(mapping)]
+        for section in state["retrieved_sections"]:
+            citations.append(
+                SectionCitation(
+                    section_number=section.section_number,
+                    title=section.title,
+                    excerpt=_excerpt(section.text),
+                    act=section.act,
+                    ipc_section_number=mapping.ipc_section_number,
+                    mapping_source=mapping.source,
+                )
+            )
+
+        draft = llm.compose_ipc_mapping(
+            ipc_section_number=mapping.ipc_section_number,
+            ipc_title=mapping.ipc_title,
+            mapping_source=mapping.source,
+            bns_sections=state["retrieved_sections"],
+        )
+        return {
+            **state,
+            "lead": draft.lead,
+            "body": draft.body,
+            "citations": citations,
+            "confidence": "high" if state["retrieved_sections"] else "low",
+        }
+
     if not state["retrieved_sections"]:
         return {
             **state,
@@ -109,7 +216,36 @@ def compose_response(
     }
 
 
-def verify_citations(state: GraphState, *, corpus: SectionCorpus) -> GraphState:
+def verify_citations(
+    state: GraphState,
+    *,
+    corpus: SectionCorpus,
+    mapping_store: MappingLookup,
+) -> GraphState:
+    if state["query_mode"] == "ipc_to_bns_mapping":
+        verified: list[SectionCitation] = []
+        for citation in state["citations"]:
+            if citation.act == "IPC":
+                mapping = mapping_store.lookup_by_ipc_numbers(
+                    [citation.section_number]
+                )
+                if mapping:
+                    verified.append(citation)
+                continue
+            if citation.section_number in corpus.known_section_numbers:
+                if citation.ipc_section_number is None:
+                    verified.append(citation)
+                    continue
+                mapping = mapping_store.lookup_by_ipc_numbers(
+                    [citation.ipc_section_number]
+                )
+                if (
+                    mapping
+                    and citation.section_number in mapping[0].bns_section_numbers
+                ):
+                    verified.append(citation)
+        return {**state, "citations": verified}
+
     allowed = corpus.known_section_numbers
     verified = [c for c in state["citations"] if c.section_number in allowed]
     return {**state, "citations": verified}
@@ -117,12 +253,17 @@ def verify_citations(state: GraphState, *, corpus: SectionCorpus) -> GraphState:
 
 def _compile_graph(
     corpus: SectionCorpus,
+    mapping_store: MappingLookup,
     llm: StubLLMProvider,
 ):
     from langgraph.graph import END, StateGraph
 
     graph = StateGraph(GraphState)
     graph.add_node("classify", classify_query)
+    graph.add_node(
+        "retrieve_mappings",
+        lambda state: retrieve_mappings(state, mapping_store=mapping_store),
+    )
     graph.add_node(
         "retrieve",
         lambda state: retrieve_sections(state, corpus=corpus),
@@ -133,11 +274,14 @@ def _compile_graph(
     )
     graph.add_node(
         "verify",
-        lambda state: verify_citations(state, corpus=corpus),
+        lambda state: verify_citations(
+            state, corpus=corpus, mapping_store=mapping_store
+        ),
     )
 
     graph.set_entry_point("classify")
-    graph.add_edge("classify", "retrieve")
+    graph.add_edge("classify", "retrieve_mappings")
+    graph.add_edge("retrieve_mappings", "retrieve")
     graph.add_edge("retrieve", "compose")
     graph.add_edge("compose", "verify")
     graph.add_edge("verify", END)
@@ -145,27 +289,38 @@ def _compile_graph(
 
 
 _DEFAULT_CORPUS = DEFAULT_CORPUS
+_DEFAULT_MAPPING_STORE = DEFAULT_MAPPING_STORE
 _DEFAULT_LLM = StubLLMProvider()
-_COMPILED_GRAPH = _compile_graph(_DEFAULT_CORPUS, _DEFAULT_LLM)
+_COMPILED_GRAPH = _compile_graph(
+    _DEFAULT_CORPUS, _DEFAULT_MAPPING_STORE, _DEFAULT_LLM
+)
 
 
 def run_research_graph(
     query: str,
     *,
     corpus: SectionCorpus,
+    mapping_store: MappingLookup | None = None,
     llm: StubLLMProvider | None = None,
 ) -> GraphState:
-    """Minimal in-process LangGraph pipeline for section lookup."""
+    """Minimal in-process LangGraph pipeline for BNS research."""
     llm = llm or _DEFAULT_LLM
+    mapping_store = mapping_store or _DEFAULT_MAPPING_STORE
     app = (
         _COMPILED_GRAPH
-        if corpus is _DEFAULT_CORPUS and llm is _DEFAULT_LLM
-        else _compile_graph(corpus, llm)
+        if (
+            corpus is _DEFAULT_CORPUS
+            and mapping_store is _DEFAULT_MAPPING_STORE
+            and llm is _DEFAULT_LLM
+        )
+        else _compile_graph(corpus, mapping_store, llm)
     )
     initial: GraphState = {
         "query": query,
         "query_mode": "",
         "requested_section_numbers": [],
+        "requested_ipc_section_numbers": [],
+        "retrieved_mappings": [],
         "retrieved_sections": [],
         "lead": "",
         "body": "",
