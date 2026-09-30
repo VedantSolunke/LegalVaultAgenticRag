@@ -1,0 +1,8 @@
+{
+  "invite_gate": {
+    "min_overall_pass_rate": 0.9,
+    "section_lookup_min_pass_rate": 0.95,
+    "ipc_mapping_min_pass_rate": 0.95,
+    "fact_pattern_min_pass_rate": 0.7
+  }
+}

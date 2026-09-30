@@ -82,6 +82,38 @@ When `LEGALVAULT_DATABASE_URL` is set, each `/research` and session message call
 
 Dev bearer tokens: `test-admin-token` (admin), `test-user-token` (standard).
 
+## Offline eval (ADR-0013)
+
+```bash
+cd backend
+uv run legalvault-eval
+uv run legalvault-eval --check-invite-gate
+```
+
+Thresholds and invite-gate policy: `docs/eval-quality-gate.md`. Question set: `backend/eval/questions.json`.
+
+## Session TTL purge
+
+Delete chat sessions inactive longer than the TTL (messages cascade):
+
+```bash
+export LEGALVAULT_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/legalvault
+uv run legalvault-purge-sessions
+uv run legalvault-purge-sessions --dry-run
+```
+
+Configure retention with `LEGALVAULT_SESSION_TTL_DAYS` (default `30`). Schedule via cron or `docker compose --profile ops run --rm purge-sessions` (see root `docker-compose.yml`).
+
+## Docker Compose stack
+
+From the repo root:
+
+```bash
+docker compose up --build
+```
+
+Starts Postgres, the API on `:8000`, and the web UI on `:3000`. The default API image uses the in-memory fixture corpus; ingest BNS into Postgres separately for hybrid retrieval (see above).
+
 ## Tests
 
 Integration tests hit the HTTP API with fixture corpus and stub providers (no live Gemini). Postgres tests use `LEGALVAULT_TEST_DATABASE_URL` when a database is available (CI provides one):

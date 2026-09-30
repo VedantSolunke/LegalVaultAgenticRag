@@ -1,6 +1,8 @@
 import { apiBaseUrl } from "@/lib/config";
 import type {
   ChatSession,
+  MeResponse,
+  RequestTrace,
   ResearchResponse,
   SessionMessage,
 } from "@/lib/types";
@@ -80,6 +82,17 @@ export async function postSessionMessage(
     method: "POST",
     body: JSON.stringify({ query }),
   });
+}
+
+export async function fetchMe(accessToken: string): Promise<MeResponse> {
+  return request<MeResponse>("/me", accessToken);
+}
+
+export async function fetchRequestTrace(
+  accessToken: string,
+  traceId: string,
+): Promise<RequestTrace> {
+  return request<RequestTrace>(`/traces/${traceId}`, accessToken);
 }
 
 export function formatQueryMode(mode: string): string {
