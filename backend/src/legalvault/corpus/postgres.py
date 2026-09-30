@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import psycopg
+from pgvector import Vector
 from pgvector.psycopg import register_vector
 
 from legalvault.models.research import SectionRecord
 from legalvault.providers.embeddings import EmbeddingProvider, StubEmbeddingProvider
 from legalvault.retrieval.hybrid import reciprocal_rank_fusion
+
+
+def _pgvector(value: list[float]) -> Vector:
+    return Vector(value)
 
 
 def _row_to_section(row: tuple) -> SectionRecord:
@@ -93,14 +98,14 @@ class PostgresSectionCorpus:
         return [_row_to_section(row) for row in rows]
 
     def _semantic_search(self, query: str, limit: int) -> list[SectionRecord]:
-        query_vec = self._embedder.embed_query(query)
+        query_vec = _pgvector(self._embedder.embed_query(query))
         with self._conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT chunk_id, section_number, title, chapter, body_text, act
                 FROM bns_sections
                 WHERE embedding IS NOT NULL
-                ORDER BY embedding <=> %s
+                ORDER BY embedding <=> %s::vector
                 LIMIT %s
                 """,
                 (query_vec, limit),
@@ -141,7 +146,7 @@ def ingest_section_records(
     with conn.cursor() as cur:
         for record in records:
             chunk_id = record.chunk_id or f"BNS_{record.section_number}"
-            embedding = embedder.embed_text(record.text)
+            embedding = _pgvector(embedder.embed_text(record.text))
             search_document = f"{record.title} {record.text}"
             cur.execute(
                 """
@@ -152,7 +157,7 @@ def ingest_section_records(
                 VALUES (
                     %s, %s, %s, %s, %s, %s,
                     to_tsvector('english', %s),
-                    %s
+                    %s::vector
                 )
                 ON CONFLICT (section_number) DO UPDATE SET
                     chunk_id = EXCLUDED.chunk_id,
