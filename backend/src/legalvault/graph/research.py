@@ -1,16 +1,19 @@
-from typing import Protocol, TypedDict
+import time
+from typing import Any, Protocol, TypedDict
 
 from legalvault.corpus.mapping_repository import DEFAULT_MAPPING_STORE
 from legalvault.corpus.repository import DEFAULT_CORPUS, SectionCorpus
 from legalvault.models.mapping import MappingRecord
 from legalvault.models.research import SectionCitation, SectionRecord
 from legalvault.providers.stubs import StubLLMProvider
-from legalvault.retrieval.ipc_lookup import (
-    extract_ipc_section_numbers,
-    is_ipc_mapping_query,
-)
+from legalvault.retrieval.ipc_lookup import extract_ipc_section_numbers
+from legalvault.retrieval.query_modes import classify_query_mode, facts_are_thin
 from legalvault.retrieval.section_lookup import extract_section_numbers
 from legalvault.sessions.context import build_retrieval_query
+from legalvault.verification.evidence import (
+    citations_supported,
+    prose_references_only_retrieved_sections,
+)
 
 DISCLAIMER = (
     "LegalVault is a legal research assistant, not legal advice. "
@@ -37,6 +40,8 @@ class GraphState(TypedDict):
     body: str
     citations: list[SectionCitation]
     confidence: str
+    verification_outcome: str
+    latency_ms: float
 
 
 def _excerpt(text: str, max_len: int = 280) -> str:
@@ -48,27 +53,21 @@ def _excerpt(text: str, max_len: int = 280) -> str:
 
 def classify_query(state: GraphState) -> GraphState:
     classification_text = state["retrieval_query"]
-    if is_ipc_mapping_query(classification_text):
+    mode = classify_query_mode(classification_text)
+    if mode == "ipc_to_bns_mapping":
         return {
             **state,
-            "query_mode": "ipc_to_bns_mapping",
+            "query_mode": mode,
             "requested_ipc_section_numbers": extract_ipc_section_numbers(
                 classification_text
             ),
             "requested_section_numbers": [],
         }
     numbers = extract_section_numbers(classification_text)
-    if numbers:
-        return {
-            **state,
-            "query_mode": "section_lookup",
-            "requested_section_numbers": numbers,
-            "requested_ipc_section_numbers": [],
-        }
     return {
         **state,
-        "query_mode": "legal_concept_lookup",
-        "requested_section_numbers": [],
+        "query_mode": mode,
+        "requested_section_numbers": numbers,
         "requested_ipc_section_numbers": [],
     }
 
@@ -85,6 +84,9 @@ def retrieve_mappings(
 
 
 def retrieve_sections(state: GraphState, *, corpus: SectionCorpus) -> GraphState:
+    if state["query_mode"] in ("out_of_corpus", "general_bns_information"):
+        return {**state, "retrieved_sections": []}
+
     if state["query_mode"] == "ipc_to_bns_mapping":
         bns_numbers: list[int] = []
         for mapping in state["retrieved_mappings"]:
@@ -122,6 +124,26 @@ def _mapping_provenance_citation(
 def compose_response(
     state: GraphState, *, llm: StubLLMProvider
 ) -> GraphState:
+    if state["query_mode"] == "out_of_corpus":
+        draft = llm.compose_out_of_corpus(query=state["query"])
+        return {
+            **state,
+            "lead": draft.lead,
+            "body": draft.body,
+            "citations": [],
+            "confidence": "low",
+        }
+
+    if state["query_mode"] == "general_bns_information":
+        draft = llm.compose_general_bns_information()
+        return {
+            **state,
+            "lead": draft.lead,
+            "body": draft.body,
+            "citations": [],
+            "confidence": "medium",
+        }
+
     if state["query_mode"] == "ipc_to_bns_mapping":
         if not state["retrieved_mappings"]:
             return {
@@ -165,7 +187,10 @@ def compose_response(
             "confidence": "high" if state["retrieved_sections"] else "low",
         }
 
-    if not state["retrieved_sections"]:
+    if not state["retrieved_sections"] and state["query_mode"] not in (
+        "fact_pattern_analysis",
+        "section_comparison",
+    ):
         return {
             **state,
             "lead": "No matching BNS section records were found in the corpus for this query.",
@@ -186,6 +211,37 @@ def compose_response(
         )
         for s in state["retrieved_sections"]
     ]
+
+    if state["query_mode"] == "fact_pattern_analysis":
+        thin = facts_are_thin(state["query"])
+        draft = llm.compose_fact_pattern(
+            query=state["query"],
+            sections=state["retrieved_sections"],
+            thin_facts=thin,
+        )
+        if not state["retrieved_sections"]:
+            confidence = "low"
+        elif thin:
+            confidence = "low"
+        else:
+            confidence = "high"
+        return {
+            **state,
+            "lead": draft.lead,
+            "body": draft.body,
+            "citations": citations,
+            "confidence": confidence,
+        }
+
+    if state["query_mode"] == "section_comparison":
+        draft = llm.compose_section_comparison(sections=state["retrieved_sections"])
+        return {
+            **state,
+            "lead": draft.lead,
+            "body": draft.body,
+            "citations": citations,
+            "confidence": "high" if len(state["retrieved_sections"]) >= 2 else "medium",
+        }
 
     if state["query_mode"] == "legal_concept_lookup":
         draft = llm.compose_legal_concept_lookup(
@@ -254,6 +310,81 @@ def verify_citations(
     return {**state, "citations": verified}
 
 
+_REFUSAL_LEAD = (
+    "The draft answer could not be verified against retrieved evidence."
+)
+_REFUSAL_BODY = (
+    "Try a direct BNS section lookup or add more specific facts so retrieval "
+    "can support any statutory claims."
+)
+
+
+def verify_evidence(
+    state: GraphState,
+    *,
+    corpus: SectionCorpus,
+    mapping_store: MappingLookup,
+    llm: StubLLMProvider,
+) -> GraphState:
+    state = verify_citations(state, corpus=corpus, mapping_store=mapping_store)
+    mode = state["query_mode"]
+
+    if mode == "out_of_corpus":
+        return {**state, "verification_outcome": "skipped_out_of_corpus"}
+
+    if mode == "general_bns_information":
+        return {**state, "verification_outcome": "skipped_meta"}
+
+    if mode in ("fact_pattern_analysis", "section_comparison"):
+        allowed = frozenset(s.section_number for s in state["retrieved_sections"])
+        combined = f"{state['lead']}\n{state['body']}"
+        citations_ok = citations_supported(
+            state["citations"],
+            allowed_section_numbers=allowed,
+        )
+        prose_ok = prose_references_only_retrieved_sections(
+            combined,
+            allowed_section_numbers=allowed,
+        )
+        faith_ok = llm.check_faithfulness(
+            lead=state["lead"],
+            body=state["body"],
+            allowed_section_numbers=allowed,
+        )
+        if not state["retrieved_sections"]:
+            return {**state, "verification_outcome": "passed_no_retrieval"}
+        if citations_ok and prose_ok and faith_ok:
+            return {**state, "verification_outcome": "passed"}
+        return {
+            **state,
+            "lead": _REFUSAL_LEAD,
+            "body": _REFUSAL_BODY,
+            "confidence": "low",
+            "verification_outcome": "failed_faithfulness",
+        }
+
+    return {**state, "verification_outcome": "passed_citations"}
+
+
+def build_request_trace(state: GraphState) -> dict[str, Any]:
+    snapshot = [
+        {
+            "section_number": section.section_number,
+            "title": section.title,
+            "act": section.act,
+        }
+        for section in state["retrieved_sections"]
+    ]
+    return {
+        "query_mode": state["query_mode"],
+        "retrieval_query": state["retrieval_query"],
+        "retrieval_snapshot": snapshot,
+        "verification_outcome": state["verification_outcome"],
+        "latency_ms": state["latency_ms"],
+        "confidence": state["confidence"],
+    }
+
+
 def _compile_graph(
     corpus: SectionCorpus,
     mapping_store: MappingLookup,
@@ -277,8 +408,8 @@ def _compile_graph(
     )
     graph.add_node(
         "verify",
-        lambda state: verify_citations(
-            state, corpus=corpus, mapping_store=mapping_store
+        lambda state: verify_evidence(
+            state, corpus=corpus, mapping_store=mapping_store, llm=llm
         ),
     )
 
@@ -332,5 +463,12 @@ def run_research_graph(
         "body": "",
         "citations": [],
         "confidence": "low",
+        "verification_outcome": "pending",
+        "latency_ms": 0.0,
     }
-    return app.invoke(initial)
+    started = time.perf_counter()
+    final = app.invoke(initial)
+    final["latency_ms"] = (time.perf_counter() - started) * 1000.0
+    if final.get("verification_outcome") == "pending":
+        final["verification_outcome"] = "passed_citations"
+    return final

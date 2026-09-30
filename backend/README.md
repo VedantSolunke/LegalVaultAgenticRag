@@ -73,6 +73,12 @@ Apply schema (`003_chat_sessions.sql` is included when you run `--apply-schema` 
 - `GET /sessions` — list sessions for the authenticated user
 - `POST /sessions/{id}/messages` — send a message, run research, persist **redacted** user/assistant rows
 
+## Debug traces
+
+When `LEGALVAULT_DATABASE_URL` is set, each `/research` and session message call stores a `request_traces` row. Responses include a `trace_id`. Only **admin** users may fetch `GET /traces/{trace_id}` (enforced in the API; Supabase RLS limits direct reads to admins).
+
+Dev bearer tokens: `test-admin-token` (admin), `test-user-token` (standard).
+
 ## Tests
 
 Integration tests hit the HTTP API with fixture corpus and stub providers (no live Gemini). Postgres tests use `LEGALVAULT_TEST_DATABASE_URL` when a database is available (CI provides one):

@@ -31,3 +31,4 @@ class ResearchResponse(BaseModel):
     citations: list[SectionCitation]
     confidence: str
     disclaimer: str
+    trace_id: str | None = None
