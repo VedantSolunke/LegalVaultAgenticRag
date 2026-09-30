@@ -7,6 +7,7 @@ class SectionRecord(BaseModel):
     chapter: str
     text: str
     act: str = "BNS"
+    chunk_id: str | None = None
 
 
 class SectionCitation(BaseModel):

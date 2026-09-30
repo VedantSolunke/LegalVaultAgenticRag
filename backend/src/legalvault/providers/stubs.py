@@ -24,8 +24,19 @@ class StubLLMProvider:
         )
         return StubLLMResult(lead=lead, body=body)
 
-
-class StubEmbeddingProvider:
-    def embed_query(self, text: str) -> list[float]:
-        _ = text
-        return [0.0]
+    def compose_legal_concept_lookup(
+        self,
+        *,
+        query: str,
+        sections: list,
+    ) -> StubLLMResult:
+        titles = ", ".join(f"Section {s.section_number} ({s.title})" for s in sections)
+        lead = (
+            f"Retrieved BNS section records that may relate to your question about "
+            f"“{query.strip()}”; verify citations below."
+        )
+        body = (
+            f"The hybrid retrieval pipeline returned: {titles}.\n\n"
+            "Each citation excerpt is taken from the indexed GSMS-B section record only."
+        )
+        return StubLLMResult(lead=lead, body=body)
