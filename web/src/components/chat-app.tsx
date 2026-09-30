@@ -44,14 +44,20 @@ export function ChatApp() {
 
   const loadSessions = useCallback(async () => {
     if (!accessToken) {
+      setSessions([]);
+      setActiveSessionId(null);
+      setMessages([]);
       return;
     }
     setLoadingSessions(true);
     setError(null);
+    setSessions([]);
+    setActiveSessionId(null);
+    setMessages([]);
     try {
       const next = await listSessions(accessToken);
       setSessions(next);
-      setActiveSessionId((current) => current ?? next[0]?.id ?? null);
+      setActiveSessionId(next[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
@@ -139,7 +145,7 @@ export function ChatApp() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50">
       <header className="border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div>
@@ -156,8 +162,8 @@ export function ChatApp() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 gap-0 md:gap-4 md:p-4">
-        <aside className="w-full max-w-xs shrink-0 border-r border-slate-200 bg-white md:rounded-lg md:border">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 gap-0 md:gap-4 md:p-4">
+        <aside className="flex min-h-0 w-full max-w-xs shrink-0 flex-col border-r border-slate-200 bg-white md:rounded-lg md:border">
           <div className="flex items-center justify-between border-b border-slate-100 p-3">
             <h2 className="text-sm font-semibold text-slate-800">Sessions</h2>
             <button
@@ -168,7 +174,7 @@ export function ChatApp() {
               New
             </button>
           </div>
-          <ul className="max-h-[calc(100vh-8rem)] overflow-y-auto p-2">
+          <ul className="min-h-0 flex-1 overflow-y-auto p-2">
             {loadingSessions && sessions.length === 0 && (
               <li className="px-2 py-3 text-sm text-slate-500">Loading…</li>
             )}
@@ -190,12 +196,12 @@ export function ChatApp() {
           </ul>
         </aside>
 
-        <main className="flex min-h-[calc(100vh-4rem)] flex-1 flex-col bg-white md:rounded-lg md:border md:border-slate-200">
+        <main className="flex min-h-0 flex-1 flex-col bg-white md:rounded-lg md:border md:border-slate-200">
           <div className="border-b border-slate-100 p-3">
             <DisclaimerBanner />
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             {!activeSessionId && (
               <p className="text-sm text-slate-600">
                 Create a session to start researching BNS provisions.
@@ -242,7 +248,7 @@ export function ChatApp() {
               placeholder="Ask about a BNS section or describe a fact pattern…"
               rows={2}
               disabled={!activeSessionId || sending}
-              className="min-h-[3rem] flex-1 resize-y rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="min-h-[3rem] flex-1 resize-y rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
             />
             <button
               type="submit"

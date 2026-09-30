@@ -1,6 +1,6 @@
 # LegalVault web UI
 
-Next.js chat UI for trusted users: Supabase sign-in (or dev bearer token), session list, BNS research responses with expandable citations, confidence labels, and the legal research disclaimer.
+Next.js chat UI: Supabase email/password signup and sign-in (or dev bearer token), session list, BNS research responses with expandable citations, confidence labels, and the legal research disclaimer.
 
 ## Local development
 
@@ -26,7 +26,7 @@ Next.js chat UI for trusted users: Supabase sign-in (or dev bearer token), sessi
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000). Use **Continue with dev API token** when `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN` is set, or sign in with Supabase email/password when URL and anon key are configured.
+   Open [http://localhost:3000](http://localhost:3000). Use **Continue with dev API token** when `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN` is set, or use **Create one** on the login page to sign up with Supabase when URL and anon key are configured.
 
 4. Ensure the API allows the UI origin (default `http://localhost:3000` via `LEGALVAULT_CORS_ORIGINS`).
 
@@ -40,6 +40,14 @@ Next.js chat UI for trusted users: Supabase sign-in (or dev bearer token), sessi
 
 ## Supabase
 
-Create invite-only users in your Supabase project (ADR-0007). Set the API `LEGALVAULT_SUPABASE_JWT_SECRET` to your project JWT secret so the backend accepts Supabase access tokens. Apply `backend/sql/003_chat_sessions.sql` on the same Postgres used by the API.
+See ADR-0014 for the public signup policy on the resume deployment.
+
+1. In the Supabase SQL editor, apply `backend/sql/003_chat_sessions.sql` then `backend/sql/005_auth_profile_on_signup.sql` on the project database.
+2. **Authentication → URL configuration**: set **Site URL** to your web origin (e.g. `http://localhost:3000` or your production URL). Add redirect URLs for `{origin}/auth/callback` and `{origin}/reset-password`.
+3. **Authentication → Providers → Email**: enable email signup; turn **Confirm email** on for production. For local testing, you may enable auto-confirm so you are not clicking confirmation links on every signup.
+4. Web env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` (same origin as step 2, no trailing slash).
+5. API env: `LEGALVAULT_SUPABASE_URL` so the backend verifies access tokens via JWKS (legacy HS256 projects may use `LEGALVAULT_SUPABASE_JWT_SECRET`).
+
+Do not set `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN` in production.
 
 Debug trace UI is intentionally omitted for standard users (ADR-0009).

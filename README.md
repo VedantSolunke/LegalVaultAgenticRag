@@ -33,6 +33,6 @@ npm install
 npm run dev
 ```
 
-Use `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN=test-user-token` in `web/.env.local` when the API runs without `LEGALVAULT_SUPABASE_JWT_SECRET`. For Supabase Auth, configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and set `LEGALVAULT_SUPABASE_JWT_SECRET` on the API.
+Use `NEXT_PUBLIC_LEGALVAULT_DEV_BEARER_TOKEN=test-user-token` in `web/.env.local` when the API runs without Supabase JWT verification (local only). For Supabase Auth, configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` on the web app; set `LEGALVAULT_SUPABASE_URL` in `backend/.env` (the API verifies access tokens via JWKS). Apply `backend/sql/005_auth_profile_on_signup.sql` on Supabase after `003_chat_sessions.sql`. See `web/README.md` and ADR-0014.
 
 More detail: `backend/README.md`, `web/README.md`.

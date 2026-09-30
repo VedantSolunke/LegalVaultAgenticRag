@@ -8,6 +8,7 @@ from legalvault.config import get_settings
 def test_research_rejects_invalid_jwt_when_supabase_secret_configured(
     client, monkeypatch
 ) -> None:
+    monkeypatch.setenv("LEGALVAULT_SUPABASE_URL", "")
     monkeypatch.setenv(
         "LEGALVAULT_SUPABASE_JWT_SECRET",
         "unit-test-jwt-secret-at-least-32-bytes-long",
@@ -27,6 +28,7 @@ def test_research_rejects_invalid_jwt_when_supabase_secret_configured(
 
 def test_research_accepts_signed_supabase_jwt(client, monkeypatch) -> None:
     secret = "unit-test-jwt-secret-at-least-32-bytes-long"
+    monkeypatch.setenv("LEGALVAULT_SUPABASE_URL", "")
     monkeypatch.setenv("LEGALVAULT_SUPABASE_JWT_SECRET", secret)
     get_settings.cache_clear()
 

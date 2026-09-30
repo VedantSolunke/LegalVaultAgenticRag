@@ -11,6 +11,8 @@ import {
 
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth/token";
 import { fetchMe } from "@/lib/api/client";
+import { supabaseConfigured } from "@/lib/config";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AuthContextValue = {
   accessToken: string | null;
@@ -60,6 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    if (supabaseConfigured()) {
+      void createSupabaseBrowserClient().auth.signOut();
+    }
     clearAccessToken();
     setTokenState(null);
     setIsAdmin(false);

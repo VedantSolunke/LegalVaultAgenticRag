@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jwt import InvalidTokenError
+from jwt import InvalidTokenError, PyJWKClient
 
 from legalvault.config import Settings, get_settings
 
@@ -22,14 +23,41 @@ class AuthenticatedUser:
     is_admin: bool = False
 
 
-def _user_from_supabase_jwt(token: str, secret: str) -> AuthenticatedUser:
-    try:
-        payload = jwt.decode(
+@lru_cache
+def _jwks_client(supabase_url: str) -> PyJWKClient:
+    base = supabase_url.rstrip("/")
+    return PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json")
+
+
+def _payload_from_supabase_jwt(token: str, settings: Settings) -> dict:
+    if settings.supabase_url:
+        try:
+            signing_key = _jwks_client(settings.supabase_url).get_signing_key_from_jwt(
+                token
+            )
+            return jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[signing_key.algorithm_name],
+                audience="authenticated",
+            )
+        except InvalidTokenError:
+            pass
+
+    if settings.supabase_jwt_secret:
+        return jwt.decode(
             token,
-            secret,
+            settings.supabase_jwt_secret,
             algorithms=["HS256"],
             audience="authenticated",
         )
+
+    raise InvalidTokenError("No Supabase JWT verification configured")
+
+
+def _user_from_supabase_jwt(token: str, settings: Settings) -> AuthenticatedUser:
+    try:
+        payload = _payload_from_supabase_jwt(token, settings)
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -93,10 +121,8 @@ def get_current_user(
             detail="Authentication required",
         )
 
-    if settings.supabase_jwt_secret:
-        user = _user_from_supabase_jwt(
-            credentials.credentials, settings.supabase_jwt_secret
-        )
+    if settings.supabase_url or settings.supabase_jwt_secret:
+        user = _user_from_supabase_jwt(credentials.credentials, settings)
         profile_admin = _profile_is_admin(user.user_id, settings)
         if profile_admin is not None:
             return AuthenticatedUser(user_id=user.user_id, is_admin=profile_admin)

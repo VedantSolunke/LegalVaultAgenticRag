@@ -129,6 +129,29 @@ def test_stored_user_message_redacts_obvious_pii(
     assert "witness@example.com" not in body
 
 
+def test_list_sessions_only_includes_own_sessions(
+    session_client: TestClient,
+    auth_headers: dict[str, str],
+    auth_headers_user_b: dict[str, str],
+) -> None:
+    created_a = session_client.post("/sessions", headers=auth_headers)
+    session_id_a = created_a.json()["session"]["id"]
+    created_b = session_client.post("/sessions", headers=auth_headers_user_b)
+    session_id_b = created_b.json()["session"]["id"]
+
+    list_a = session_client.get("/sessions", headers=auth_headers)
+    assert list_a.status_code == 200
+    ids_a = {s["id"] for s in list_a.json()["sessions"]}
+    assert session_id_a in ids_a
+    assert session_id_b not in ids_a
+
+    list_b = session_client.get("/sessions", headers=auth_headers_user_b)
+    assert list_b.status_code == 200
+    ids_b = {s["id"] for s in list_b.json()["sessions"]}
+    assert session_id_b in ids_b
+    assert session_id_a not in ids_b
+
+
 def test_session_isolation_returns_not_found_for_other_user(
     session_client: TestClient,
     auth_headers: dict[str, str],

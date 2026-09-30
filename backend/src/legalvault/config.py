@@ -6,10 +6,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="LEGALVAULT_")
+    model_config = SettingsConfigDict(
+        env_prefix="LEGALVAULT_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     test_auth_token: str = "test-user-token"
-    # Reserved for Supabase JWT verification and environment-specific config.
+    # Supabase Auth: JWKS URL is derived from supabase_url; legacy HS256 uses jwt_secret.
+    supabase_url: str | None = None
     supabase_jwt_secret: str | None = None
     corpus_backend: Literal["fixture", "postgres"] = "fixture"
     database_url: str | None = None
