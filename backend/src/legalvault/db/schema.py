@@ -9,6 +9,7 @@ _SCHEMA_FILES = (
     _SQL_DIR / "001_bns_sections.sql",
     _SQL_DIR / "002_ipc_mappings.sql",
     _SQL_DIR / "003_chat_sessions.sql",
+    _SQL_DIR / "004_request_traces.sql",
 )
 
 

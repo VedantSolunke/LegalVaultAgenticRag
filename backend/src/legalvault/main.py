@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from legalvault.api.health import router as health_router
 from legalvault.api.research import router as research_router
 from legalvault.api.sessions import router as sessions_router
+from legalvault.api.traces import router as traces_router
 
 
 def create_app() -> FastAPI:
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(research_router)
     app.include_router(sessions_router)
+    app.include_router(traces_router)
     return app
 
 

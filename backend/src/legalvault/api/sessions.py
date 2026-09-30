@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from legalvault.api.research import _corpus_dependency, _mapping_dependency
 from legalvault.auth import AuthenticatedUser, get_current_user
+from legalvault.api.trace_persist import persist_request_trace
 from legalvault.config import Settings, get_settings
 from legalvault.corpus.repository import SectionCorpus
 from legalvault.graph.research import DISCLAIMER, MappingLookup, run_research_graph
@@ -71,6 +72,7 @@ def post_session_message(
     store: SessionStore = Depends(_require_session_store),
     corpus: SectionCorpus = Depends(_corpus_dependency),
     mapping_store: MappingLookup = Depends(_mapping_dependency),
+    settings: Settings = Depends(get_settings),
 ) -> PostMessageResponse:
     session = store.get_session_for_user(user.user_id, session_id)
     if session is None:
@@ -87,6 +89,14 @@ def post_session_message(
         conversation_history=history,
     )
     research = _research_response_from_state(state)
+    trace_id = persist_request_trace(
+        settings,
+        user.user_id,
+        state,
+        session_id=session_id,
+    )
+    if trace_id is not None:
+        research = research.model_copy(update={"trace_id": trace_id})
 
     user_message = store.append_message(
         session_id,

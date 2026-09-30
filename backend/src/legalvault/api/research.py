@@ -4,7 +4,8 @@ from typing import cast
 from fastapi import APIRouter, Depends
 
 from legalvault.auth import AuthenticatedUser, get_current_user
-from legalvault.config import get_settings
+from legalvault.api.trace_persist import persist_request_trace
+from legalvault.config import Settings, get_settings
 from legalvault.corpus.mapping_repository import DEFAULT_MAPPING_STORE
 from legalvault.corpus.postgres import PostgresSectionCorpus
 from legalvault.corpus.postgres_mapping import PostgresMappingStore
@@ -50,15 +51,17 @@ def _mapping_dependency() -> MappingLookup:
 @router.post("/research", response_model=ResearchResponse)
 def post_research(
     body: ResearchRequest,
-    _user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     corpus: SectionCorpus = Depends(_corpus_dependency),
     mapping_store: MappingLookup = Depends(_mapping_dependency),
+    settings: Settings = Depends(get_settings),
 ) -> ResearchResponse:
     state = run_research_graph(
         body.query,
         corpus=corpus,
         mapping_store=mapping_store,
     )
+    trace_id = persist_request_trace(settings, user.user_id, state)
     return ResearchResponse(
         query_mode=state["query_mode"],
         lead=state["lead"],
@@ -66,4 +69,5 @@ def post_research(
         citations=state["citations"],
         confidence=state["confidence"],
         disclaimer=DISCLAIMER,
+        trace_id=trace_id,
     )
