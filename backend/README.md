@@ -39,12 +39,30 @@ Embeddings use the deterministic stub provider by default in the ingest CLI; swa
 
 Ingest curated IPC→BNS mapping CSVs (primary `jbp123/bns`, optional supplemental `nandhakumarg/IPC_and_BNS_transformation`). Mapping rows are stored for structured lookup only—no embeddings.
 
+Download the CSV exports once (**from the repository root**, not `backend/`):
+
+```bash
+cd /path/to/LegalVaultAgenticRag
+mkdir -p datasets/ipc-mapping
+curl -L 'https://huggingface.co/datasets/jbp123/bns/resolve/main/Comparative%20Table%20of%20IPC%20and%20Bharatiya%20Nyaya%20Sanhita.csv' \
+  -o datasets/ipc-mapping/jbp123_comparative_table.csv
+curl -L 'https://huggingface.co/datasets/nandhakumarg/IPC_and_BNS_transformation/resolve/main/IPC%20and%20BNS%20transformation%20.csv' \
+  -o datasets/ipc-mapping/nandhakumarg_ipc_bns_transformation.csv
+```
+
+Ingest (from `backend/`; CSV paths are optional if files are in the standard `datasets/ipc-mapping/` location):
+
 ```bash
 cd backend
 export LEGALVAULT_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/legalvault
+uv run legalvault-ingest-ipc-mapping --apply-schema
+```
+
+If you already downloaded into `backend/datasets/ipc-mapping/` by mistake, the CLI will still find them. To pass paths explicitly:
+
+```bash
 uv run legalvault-ingest-ipc-mapping --apply-schema \
-  --primary-csv /path/to/jbp123/bns/Comparative\ Table\ of\ IPC\ and\ Bharatiya\ Nyaya\ Sanhita.csv \
-  --supplemental-csv "/path/to/nandhakumarg/IPC and BNS transformation .csv"
+  --primary-csv datasets/ipc-mapping/jbp123_comparative_table.csv
 ```
 
 ## Tests
